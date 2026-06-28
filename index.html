@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>衝動バトル</title>
+<style>
+  body {
+    font-family: sans-serif;
+    background: #f4f1ec;
+    color: #333;
+    text-align: center;
+    padding: 24px;
+  }
+  .box {
+    background: white;
+    border-radius: 20px;
+    padding: 22px;
+    margin: 18px auto;
+    max-width: 430px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  button {
+    font-size: 17px;
+    padding: 13px 18px;
+    margin: 7px;
+    border: none;
+    border-radius: 999px;
+    background: #4b5563;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.85; }
+  .easy { background: #047857; }
+  .normal { background: #2563eb; }
+  .hard { background: #7c3aed; }
+  .danger { background: #be123c; }
+  .reset { background: #6b7280; }
+  #count {
+    font-size: 60px;
+    font-weight: bold;
+    margin: 20px;
+  }
+  .hpbar {
+    height: 26px;
+    background: #ddd;
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 12px 0;
+  }
+  #hpFill {
+    height: 100%;
+    width: 100%;
+    background: #be123c;
+    transition: 0.3s;
+  }
+  .small {
+    font-size: 14px;
+    color: #666;
+  }
+  #message {
+    white-space: pre-line;
+    line-height: 1.7;
+    font-size: 18px;
+  }
+</style>
+</head>
+
+<body>
+
+<h1>衝動バトル</h1>
+<p class="small">スマホを触りたい衝動を、敵として倒すアプリ</p>
+
+<div class="box">
+  <h2>スマホ衝動 Lv.<span id="enemyLevel">1</span></h2>
+  <div class="hpbar">
+    <div id="hpFill"></div>
+  </div>
+  <p>HP：<span id="enemyHp">30</span> / <span id="enemyMaxHp">30</span></p>
+</div>
+
+<div class="box">
+  <h2>あなた</h2>
+  <p>Lv.<span id="playerLevel">1</span></p>
+  <p>経験値：<span id="exp">0</span></p>
+  <p>勝利数：<span id="wins">0</span></p>
+</div>
+
+<div class="box" id="startBox">
+  <p>今、スマホを触りたい？</p>
+  <button onclick="showReasons()">戦闘開始</button>
+</div>
+
+<div class="box" id="reasonBox" style="display:none;">
+  <p>今の衝動はどれ？</p>
+  <button onclick="selectReason('退屈')">退屈</button>
+  <button onclick="selectReason('不安')">不安</button>
+  <button onclick="selectReason('SNS')">SNS</button>
+  <button onclick="selectReason('現実逃避')">現実逃避</button>
+  <button onclick="selectReason('なんとなく')">なんとなく</button>
+</div>
+
+<div class="box" id="timeBox" style="display:none;">
+  <p>何秒耐える？</p>
+  <button class="easy" onclick="startBattle(5, 2, 1)">5秒</button>
+  <button class="easy" onclick="startBattle(15, 5, 3)">15秒</button>
+  <button class="normal" onclick="startBattle(30, 10, 7)">30秒</button>
+  <button class="hard" onclick="startBattle(60, 20, 15)">1分</button>
+  <button class="danger" onclick="startBattle(120, 45, 35)">2分</button>
+</div>
+
+<div class="box" id="battleBox" style="display:none;">
+  <p>耐えろ……！</p>
+  <div id="count">5</div>
+  <p class="small">この画面を見ているだけで攻撃中</p>
+</div>
+
+<div class="box" id="resultBox" style="display:none;">
+  <div id="message"></div>
+  <button class="easy" onclick="success()">耐えきった！</button>
+  <button class="danger" onclick="fail()">無理、スマホ見る</button>
+</div>
+
+<div class="box">
+  <button class="reset" onclick="resetData()">記録をリセット</button>
+</div>
+
+<script>
+let selectedReason = "";
+let count = 0;
+let timer = null;
+
+let damage = 0;
+let gainExp = 0;
+
+let playerLevel = Number(localStorage.getItem("playerLevel") || 1);
+let exp = Number(localStorage.getItem("exp") || 0);
+let wins = Number(localStorage.getItem("wins") || 0);
+
+let enemyLevel = Number(localStorage.getItem("enemyLevel") || 1);
+let enemyMaxHp = Number(localStorage.getItem("enemyMaxHp") || 30);
+let enemyHp = Number(localStorage.getItem("enemyHp") || enemyMaxHp);
+
+updateScreen();
+
+function saveData() {
+  localStorage.setItem("playerLevel", playerLevel);
+  localStorage.setItem("exp", exp);
+  localStorage.setItem("wins", wins);
+  localStorage.setItem("enemyLevel", enemyLevel);
+  localStorage.setItem("enemyMaxHp", enemyMaxHp);
+  localStorage.setItem("enemyHp", enemyHp);
+}
+
+function updateScreen() {
+  document.getElementById("playerLevel").textContent = playerLevel;
+  document.getElementById("exp").textContent = exp;
+  document.getElementById("wins").textContent = wins;
+
+  document.getElementById("enemyLevel").textContent = enemyLevel;
+  document.getElementById("enemyHp").textContent = enemyHp;
+  document.getElementById("enemyMaxHp").textContent = enemyMaxHp;
+
+  let percent = Math.max(0, enemyHp / enemyMaxHp * 100);
+  document.getElementById("hpFill").style.width = percent + "%";
+}
+
+function showReasons() {
+  hideAll();
+  document.getElementById("reasonBox").style.display = "block";
+}
+
+function selectReason(reason) {
+  selectedReason = reason;
+  hideAll();
+  document.getElementById("timeBox").style.display = "block";
+}
+
+function startBattle(seconds, dmg, xp) {
+  damage = dmg;
+  gainExp = xp;
+  count = seconds;
+
+  hideAll();
+  document.getElementById("battleBox").style.display = "block";
+  document.getElementById("count").textContent = count;
+
+  timer = setInterval(function() {
+    count--;
+    document.getElementById("count").textContent = count;
+
+    if (count <= 0) {
+      clearInterval(timer);
+      showResult();
+    }
+  }, 1000);
+}
+
+function showResult() {
+  hideAll();
+  document.getElementById("resultBox").style.display = "block";
+
+  let text = "耐えきった！\n\n";
+  text += "理由：" + selectedReason + "\n";
+  text += "衝動に " + damage + " ダメージを与えられる。\n";
+  text += "経験値 +" + gainExp + "\n\n";
+  text += "ここで「耐えきった！」を押せば攻撃成功。";
+
+  document.getElementById("message").textContent = text;
+}
+
+function success() {
+  enemyHp -= damage;
+  exp += gainExp;
+
+  let levelUpText = "";
+
+  if (exp >= playerLevel * 30) {
+    exp = exp - playerLevel * 30;
+    playerLevel++;
+    levelUpText += "\n\nレベルアップ！\nあなたは Lv." + playerLevel + " になった！";
+  }
+
+  if (enemyHp <= 0) {
+    wins++;
+    enemyLevel++;
+    enemyMaxHp = 30 + enemyLevel * 10;
+    enemyHp = enemyMaxHp;
+
+    alert("勝利！\nスマホ衝動を倒した！" + levelUpText + "\n\n次の衝動が現れた……！");
+  } else {
+    alert("攻撃成功！\n衝動に " + damage + " ダメージ！" + levelUpText);
+  }
+
+  saveData();
+  updateScreen();
+  hideAll();
+  document.getElementById("startBox").style.display = "block";
+}
+
+function fail() {
+  enemyHp += 5;
+
+  if (enemyHp > enemyMaxHp) {
+    enemyHp = enemyMaxHp;
+  }
+
+  saveData();
+  updateScreen();
+
+  alert("衝動が少し回復した……。\nでも敗北ではない。\n戻ってこられたらまだ戦える。");
+
+  hideAll();
+  document.getElementById("startBox").style.display = "block";
+}
+
+function hideAll() {
+  document.getElementById("startBox").style.display = "none";
+  document.getElementById("reasonBox").style.display = "none";
+  document.getElementById("timeBox").style.display = "none";
+  document.getElementById("battleBox").style.display = "none";
+  document.getElementById("resultBox").style.display = "none";
+}
+
+function resetData() {
+  if (confirm("記録を全部リセットしますか？")) {
+    localStorage.clear();
+    playerLevel = 1;
+    exp = 0;
+    wins = 0;
+    enemyLevel = 1;
+    enemyMaxHp = 30;
+    enemyHp = 30;
+    saveData();
+    updateScreen();
+    hideAll();
+    document.getElementById("startBox").style.display = "block";
+  }
+}
+</script>
+
+</body>
+</html>
